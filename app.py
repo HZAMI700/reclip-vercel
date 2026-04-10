@@ -29,6 +29,23 @@ def get_info():
         ydl_opts['cookiefile'] = COOKIES_FILE
     
     try:
+        # TIKTOK BYPASS
+        if "tiktok.com" in url:
+            import urllib.request, urllib.parse, json
+            req = urllib.request.Request("https://tikwm.com/api/", data=urllib.parse.urlencode({"url": url, "hd": 1}).encode(), headers={"User-Agent": "Mozilla/5.0"})
+            resp = json.loads(urllib.request.urlopen(req).read().decode())
+            data = resp.get("data", {})
+            return jsonify({
+                "title": data.get("title", "TikTok Video"),
+                "thumbnail": data.get("origin_cover", ""),
+                "duration": data.get("duration", 0),
+                "uploader": data.get("author", {}).get("unique_id", ""),
+                "formats": [
+                    {"id": "video", "label": "Video (MP4)", "height": 1080},
+                    {"id": "audio", "label": "Audio (MP3)", "height": 0}
+                ]
+            })
+
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
             
@@ -84,6 +101,23 @@ def start_download():
         ydl_opts['format'] = 'best[ext=mp4]/best'
 
     try:
+        # TIKTOK BYPASS
+        if "tiktok.com" in url:
+            import urllib.request, urllib.parse, json
+            req = urllib.request.Request("https://tikwm.com/api/", data=urllib.parse.urlencode({"url": url, "hd": 1}).encode(), headers={"User-Agent": "Mozilla/5.0"})
+            resp = json.loads(urllib.request.urlopen(req).read().decode())
+            data = resp.get("data", {})
+            direct_url = data.get("music") if format_choice == "audio" else data.get("play")
+            ext = ".mp3" if format_choice == "audio" else ".mp4"
+            safe_title = "".join(c for c in data.get('title', 'tiktok') if c.isalnum() or c in " -_").strip()[:30]
+            if not direct_url:
+                return jsonify({"error": "TikTok API failed to return media."}), 400
+            return jsonify({
+                "status": "done",
+                "direct_url": direct_url,
+                "filename": f"{safe_title}{ext}"
+            })
+
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
             direct_url = info.get('url')
