@@ -19,6 +19,7 @@ def get_info():
         'quiet': True,
         'no_warnings': True,
         'skip_download': True,
+        'extractor_args': {'youtube': ['player_client=android,ios,web']}
     }
     
     try:
@@ -65,6 +66,7 @@ def start_download():
         'quiet': True,
         'no_warnings': True,
         'skip_download': True,
+        'extractor_args': {'youtube': ['player_client=android,ios,web']}
     }
     
     # On Vercel, we can't download and merge audio/video (no ffmpeg, short timeouts).
