@@ -4,6 +4,9 @@ from flask import Flask, request, jsonify, render_template
 
 app = Flask(__name__)
 
+# Check if cookies.txt exists in the root directory
+COOKIES_FILE = os.path.join(os.path.dirname(__file__), "cookies.txt")
+
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -21,6 +24,9 @@ def get_info():
         'skip_download': True,
         'extractor_args': {'youtube': ['player_client=android,ios,web']}
     }
+    
+    if os.path.exists(COOKIES_FILE):
+        ydl_opts['cookiefile'] = COOKIES_FILE
     
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -69,20 +75,35 @@ def start_download():
         'extractor_args': {'youtube': ['player_client=android,ios,web']}
     }
     
-    # On Vercel, we can't download and merge audio/video (no ffmpeg, short timeouts).
-    # We must fetch a pre-merged format or an audio-only format directly.
+    if os.path.exists(COOKIES_FILE):
+        ydl_opts['cookiefile'] = COOKIES_FILE
+    
     if format_choice == "audio":
         ydl_opts['format'] = 'bestaudio/best'
     else:
-        ydl_opts['format'] = 'best[ext=mp4]/best' # Direct video with audio combined
+        ydl_opts['format'] = 'best[ext=mp4]/best'
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
             direct_url = info.get('url')
             
+            # If the bestaudio doesn't provide a direct url, try to find it from formats
+            if not direct_url and "formats" in info:
+                for f in reversed(info["formats"]):
+                    if format_choice == "audio" and f.get("acodec") != "none" and f.get("vcodec") == "none":
+                        direct_url = f.get("url")
+                        break
+                    elif format_choice == "video" and f.get("ext") == "mp4" and f.get("acodec") != "none":
+                        direct_url = f.get("url")
+                        break
+                        
+            # absolute fallback
+            if not direct_url and "formats" in info and len(info["formats"]) > 0:
+                direct_url = info["formats"][-1].get("url")
+
             if not direct_url:
-                return jsonify({"error": "Could not extract direct download link."}), 400
+                return jsonify({"error": "Could not extract direct download link. Platform might be blocking Vercel Datacenter IPs."}), 400
 
             ext = ".mp3" if format_choice == "audio" else ".mp4"
             safe_title = "".join(c for c in info.get('title', 'video') if c.isalnum() or c in " -_").strip()
